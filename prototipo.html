@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Alerta Temprana de Riesgos</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
+  h1 { text-align: center; color: #1a237e; margin-bottom: 5px; font-size: 24px; }
+  .subtitle { text-align: center; color: #666; margin-bottom: 20px; font-size: 14px; }
+  .alert-bar { display: none; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; font-weight: 600; text-align: center; font-size: 15px; }
+  .alert-bar.show { display: block; }
+  .alert-bar.critical { background: #ffebee; color: #c62828; border: 2px solid #c62828; }
+  .alert-bar.warning { background: #fff8e1; color: #f57f17; border: 2px solid #f57f17; }
+  .alert-bar.info { background: #e8f5e9; color: #2e7d32; border: 2px solid #2e7d32; }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; align-items: center; }
+  .toolbar label { font-weight: 600; font-size: 14px; }
+  .toolbar select, .toolbar button { padding: 8px 14px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; cursor: pointer; }
+  .toolbar select { background: #fff; min-width: 200px; }
+  .toolbar button { background: #1a237e; color: #fff; border: none; font-weight: 600; transition: background 0.2s; }
+  .toolbar button:hover { background: #283593; }
+  .toolbar .btn-outline { background: #fff; color: #1a237e; border: 2px solid #1a237e; }
+  .toolbar .btn-outline:hover { background: #e8eaf6; }
+  .toolbar .btn-reset { background: #757575; }
+  .toolbar .btn-reset:hover { background: #616161; }
+  .toolbar .btn-danger { background: #c62828; }
+  .toolbar .btn-danger:hover { background: #b71c1c; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  th { background: #1a237e; color: #fff; padding: 12px 8px; font-size: 12px; text-align: center; white-space: nowrap; }
+  td { padding: 10px 8px; font-size: 13px; text-align: center; border-bottom: 1px solid #e0e0e0; }
+  tr:hover { background: #f5f5f5; }
+  td input { width: 70px; padding: 4px 6px; border: 2px solid #ddd; border-radius: 4px; text-align: center; font-size: 13px; }
+  td input:focus { border-color: #1a237e; outline: none; }
+  .status-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-weight: 700; font-size: 12px; color: #fff; }
+  .status-0 { background: #4caf50; }
+  .status-1 { background: #ff9800; }
+  .status-2 { background: #f44336; }
+  .status-3 { background: #212121; }
+  .dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  .dot-0 { background: #4caf50; }
+  .dot-1 { background: #ff9800; }
+  .dot-2 { background: #f44336; }
+  .dot-3 { background: #212121; }
+  .action { font-size: 12px; color: #555; }
+  .costo { font-weight: 600; }
+  .costo.alt { color: #f44336; }
+  .costo.bajo { color: #4caf50; }
+  .footer-info { display: flex; justify-content: space-between; flex-wrap: wrap; margin-top: 15px; gap: 15px; }
+  .card { background: #fff; border-radius: 10px; padding: 15px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); flex: 1; min-width: 200px; }
+  .card h3 { font-size: 14px; color: #1a237e; margin-bottom: 8px; }
+  .card .legends { display: flex; gap: 15px; flex-wrap: wrap; font-size: 13px; }
+  .card .legends span { display: flex; align-items: center; gap: 5px; }
+  .conclusion-box { background: #e8eaf6; border-left: 5px solid #1a237e; padding: 15px 20px; border-radius: 8px; margin-top: 15px; font-size: 14px; line-height: 1.6; }
+  .conclusion-box strong { color: #1a237e; }
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 12px; padding: 25px 30px; max-width: 750px; width: 95%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
+  .modal h2 { color: #1a237e; margin-bottom: 15px; font-size: 20px; }
+  .modal .form-row { display: flex; gap: 15px; margin-bottom: 12px; flex-wrap: wrap; }
+  .modal .form-group { flex: 1; min-width: 200px; }
+  .modal .form-group label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #555; }
+  .modal .form-group input, .modal .form-group textarea { width: 100%; padding: 8px 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; }
+  .modal .form-group input:focus, .modal .form-group textarea:focus { border-color: #1a237e; outline: none; }
+  .modal .form-group textarea { resize: vertical; min-height: 50px; }
+  .modal .riesgo-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+  .modal .riesgo-row .r-id { font-weight: 700; width: 35px; color: #1a237e; }
+  .modal .riesgo-row .r-nombre { flex: 1; }
+  .modal .riesgo-row input[type="number"] { width: 70px; padding: 4px 6px; border: 2px solid #ddd; border-radius: 4px; text-align: center; }
+  .modal .riesgo-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+  .modal .modal-btns { display: flex; gap: 10px; margin-top: 15px; justify-content: flex-end; }
+  .modal .modal-btns button { padding: 10px 20px; border-radius: 6px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .modal .modal-btns .btn-save { background: #1a237e; color: #fff; }
+  .modal .modal-btns .btn-save:hover { background: #283593; }
+  .modal .modal-btns .btn-cancel { background: #e0e0e0; color: #333; }
+  .modal .modal-btns .btn-cancel:hover { background: #bdbdbd; }
+  .modal .section-title { font-weight: 700; color: #1a237e; margin: 15px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #e8eaf6; font-size: 14px; }
+  .delete-btn { background: none; border: none; color: #c62828; cursor: pointer; font-size: 18px; padding: 0 4px; }
+  .delete-btn:hover { color: #b71c1c; }
+  @media (max-width: 900px) {
+    table { font-size: 11px; }
+    th, td { padding: 6px 4px; }
+    td input { width: 55px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>&#9888; Sistema de Alerta Temprana de Riesgos</h1>
+<p class="subtitle">Proyecto: Sistema de Agendamiento de Horas M&eacute;dicas</p>
+
+<div id="alertBar" class="alert-bar"></div>
+
+<div class="toolbar">
+  <label for="scenarioSelect">&#128202; Escenario:</label>
+  <select id="scenarioSelect">
+    <option value="">-- Seleccionar escenario --</option>
+    <option value="1">Escenario 1: Cliente cambiante</option>
+    <option value="2">Escenario 2: Integraci&oacute;n problem&aacute;tica</option>
+    <option value="3">Escenario 3: Semana antes de producci&oacute;n</option>
+  </select>
+  <button onclick="cargarEscenario()">&#9654; Cargar</button>
+  <button class="btn-outline" onclick="abrirModalCrear()">+ Nuevo escenario</button>
+  <button id="btnEliminarEscenario" class="btn-danger" style="display:none;" onclick="eliminarEscenario()">&#128465; Eliminar escenario</button>
+  <button class="btn-reset" onclick="resetearValores()">&#8634; Restaurar valores iniciales</button>
+</div>
+
+<table id="tablaRiesgos">
+  <thead>
+    <tr>
+      <th title="Identificador del riesgo">#</th>
+      <th title="Nombre descriptivo del riesgo identificado">Riesgo</th>
+      <th title="Qu&eacute; se va a medir para monitorear el riesgo">Indicador</th>
+      <th title="Dato observado actualmente en el proyecto">Valor<br>Actual</th>
+      <th title="Nivel desde el cual el riesgo debe observarse">Alerta</th>
+      <th title="Nivel desde el cual se debe actuar inmediatamente">Cr&iacute;tico</th>
+      <th title="Indica si el riesgo ya se materializ&oacute; y se convirti&oacute; en problema">&#191;Ocurri&oacute;?</th>
+      <th title="Estado calculado autom&aacute;ticamente seg&uacute;n reglas del sistema">Estado</th>
+      <th title="Acci&oacute;n sugerida seg&uacute;n el estado actual del riesgo">Acci&oacute;n Recomendada</th>
+      <th title="Costo estimado de aplicar la acci&oacute;n de control">Costo Control</th>
+      <th title="P&eacute;rdida estimada si el riesgo se materializa">Costo si ocurre</th>
+      <th title="Costo esperado = probabilidad estimada &times; costo si ocurre">Costo Esperado</th>
+    </tr>
+  </thead>
+  <tbody id="cuerpoTabla"></tbody>
+</table>
+
+<div class="footer-info">
+  <div class="card">
+    <h3>Resumen de Estado</h3>
+    <div id="resumenEstados" class="legends"></div>
+  </div>
+  <div class="card">
+    <h3>Ranking de Riesgos (por costo esperado)</h3>
+    <div id="rankingRiesgos" style="font-size:13px;"></div>
+  </div>
+</div>
+
+<div id="conclusionContainer" style="display:none;">
+  <div class="conclusion-box" id="conclusionTexto"></div>
+</div>
+
+<!-- Modal para crear escenario -->
+<div class="modal-overlay" id="modalCrear">
+  <div class="modal">
+    <h2 id="modalTitulo">&#128202; Nuevo escenario</h2>
+
+    <div class="form-row">
+      <div class="form-group" style="flex:2;">
+        <label>Nombre del escenario</label>
+        <input type="text" id="modalNombre" placeholder="Ej: Escenario 4: Cliente agrega módulo nuevo">
+      </div>
+    </div>
+
+    <div class="section-title">Valores por riesgo</div>
+    <div id="modalRiesgos"></div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Mensaje de alerta</label>
+        <textarea id="modalAlerta" placeholder="Ej: R1 - Cambios de requerimientos ACTIVADO. El cliente pidi&oacute; 7 cambios."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Conclusi&oacute;n</label>
+        <textarea id="modalConclusion" placeholder="Ej: El riesgo R1 se activ&oacute;. Se debe ejecutar el plan de respuesta."></textarea>
+      </div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-save" onclick="guardarEscenario()">&#10003; Guardar escenario</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const riesgosIniciales = [
+  { id: 'R1', nombre: 'Cambios frecuentes de requerimientos', indicador: 'Cambios por semana', alerta: 3, critico: 6, ocurrido: false, costoControl: 2, costoOcurre: 15 },
+  { id: 'R2', nombre: 'Retraso en integraci\u00f3n con API externa', indicador: 'D\u00edas de atraso', alerta: 5, critico: 10, ocurrido: false, costoControl: 3, costoOcurre: 20 },
+  { id: 'R3', nombre: 'Baja disponibilidad del usuario clave', indicador: 'Reuniones no realizadas', alerta: 2, critico: 4, ocurrido: false, costoControl: 1, costoOcurre: 10 },
+  { id: 'R4', nombre: 'Aumento de defectos cr\u00edticos', indicador: 'Bugs cr\u00edticos abiertos', alerta: 5, critico: 8, ocurrido: false, costoControl: 4, costoOcurre: 25 },
+  { id: 'R5', nombre: 'Problemas de rendimiento', indicador: 'Tiempo respuesta (seg)', alerta: 3, critico: 5, ocurrido: true, costoControl: 3, costoOcurre: 18 },
+  { id: 'R6', nombre: 'Incumplimiento de controles de seguridad', indicador: 'Checklist incompleto (0-10)', alerta: 4, critico: 7, ocurrido: false, costoControl: 5, costoOcurre: 30 },
+  { id: 'R7', nombre: 'Subestimaci\u00f3n del esfuerzo de pruebas', indicador: 'Pruebas fallidas (%)', alerta: 20, critico: 40, ocurrido: false, costoControl: 3, costoOcurre: 12 }
+];
+
+const valoresIniciales = [4, 8, 3, 9, 6, 3, 15];
+
+let proximoIdEscenario = 4;
+
+const escenarios = {
+  1: {
+    label: 'Escenario 1: Cliente cambiante',
+    valores: [7, 8, 3, 4, 6, 3, 15],
+    ocurridos: [false, false, false, false, true, false, false],
+    alerta: 'R1 - Cambios de requerimientos ACTIVADO. El cliente pidi\u00f3 7 cambios por semana (cr\u00edtico: 6).',
+    tipoAlerta: 'critical',
+    conclusion: 'El riesgo <strong>R1 (Cambios de requerimientos)</strong> se activ\u00f3 por alta demanda de cambios. '
+      + 'Se debe <strong>ejecutar el plan de respuesta</strong> y escalar al comit\u00e9 de cambios. '
+      + 'Como prioridad, controlar la l\u00ednea base de requerimientos y negociar plazos con el cliente.'
+  },
+  2: {
+    label: 'Escenario 2: Integraci\u00f3n problem\u00e1tica',
+    valores: [4, 12, 3, 5, 7, 3, 6],
+    ocurridos: [false, false, false, false, false, false, false],
+    alerta: 'R2 - API externa ACTIVADO (12 d\u00edas de atraso). R5 - Rendimiento ACTIVADO (7s de respuesta).',
+    tipoAlerta: 'critical',
+    conclusion: 'Los riesgos <strong>R2 (API externa)</strong> y <strong>R5 (Rendimiento)</strong> est\u00e1n activados. '
+      + 'La integraci\u00f3n con la API externa acumula 12 d\u00edas de retraso superando el umbral cr\u00edtico de 10. '
+      + 'Se recomienda <strong>escalar al proveedor</strong> y considerar una estrategia de integraci\u00f3n alternativa. '
+      + 'Adem\u00e1s, el tiempo de respuesta de 7s supera el l\u00edmite cr\u00edtico de 5s.'
+  },
+  3: {
+    label: 'Escenario 3: Semana antes de producci\u00f3n',
+    valores: [2, 3, 1, 10, 4, 8, 30],
+    ocurridos: [false, false, false, false, false, false, false],
+    alerta: 'R4 - Defectos cr\u00edticos ACTIVADO (10 bugs). R6 - Seguridad ACTIVADO. R7 - Pruebas EN OBSERVACI\u00d3N. '
+      + 'Cliente exige salir igual. &#9888; RIESGO MAYOR.',
+    tipoAlerta: 'critical',
+    conclusion: 'El proyecto est\u00e1 en <strong>semana pre-producci\u00f3n</strong> con m\u00faltiples riesgos activados. '
+      + '<strong>R4 (Defectos cr\u00edticos)</strong> con 10 bugs abiertos (cr\u00edtico: 8) requiere contener defectos. '
+      + '<strong>R6 (Seguridad)</strong> con checklist en 8/10 incompleto debe resolverse antes del despliegue. '
+      + '<strong>R7 (Pruebas)</strong> con 30% de fallas requiere revisi\u00f3n. '
+      + '<strong>Se recomienda NO salir a producci\u00f3n</strong> y escalar la decisi\u00f3n al comit\u00e9 de calidad.'
+  }
+};
+
+let editandoEscenarioId = null;
+
+function calcularEstado(valor, alerta, critico, ocurrido) {
+  if (ocurrido) return 3;
+  if (valor >= critico) return 2;
+  if (valor >= alerta) return 1;
+  return 0;
+}
+
+const estadoTexto = ['Controlado', 'En observaci\u00f3n', 'Activado', 'Materializado'];
+const estadoClase = ['status-0', 'status-1', 'status-2', 'status-3'];
+const accionTexto = [
+  'Mantener monitoreo',
+  'Revisar semanalmente y preparar respuesta',
+  'Ejecutar plan de respuesta y escalar',
+  'Activar contingencia y registrar impacto'
+];
+
+function renderizar(riesgos, valores) {
+  const tbody = document.getElementById('cuerpoTabla');
+  tbody.innerHTML = '';
+  let resumen = [0, 0, 0, 0];
+  let ranking = [];
+
+  riesgos.forEach((r, i) => {
+    const est = calcularEstado(valores[i], r.alerta, r.critico, r.ocurrido);
+    resumen[est]++;
+    const costoEsperado = r.ocurrido ? r.costoOcurre : Math.round((valores[i] / r.critico) * r.costoOcurre);
+    ranking.push({ id: r.id, nombre: r.nombre, costoEsperado, estado: est });
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td title="Identificador del riesgo"><strong>${r.id}</strong></td>
+      <td style="text-align:left;" title="${r.nombre}">${r.nombre}</td>
+      <td style="text-align:left;font-size:12px;" title="Indicador a monitorear: ${r.indicador}">${r.indicador}</td>
+      <td title="Valor actual observado del indicador. Umbral alerta: ${r.alerta}, Umbra cr\u00edtico: ${r.critico}"><input type="number" step="0.1" value="${valores[i]}" data-index="${i}" onchange="actualizarValor(${i}, this.value)" onfocus="this.select()"></td>
+      <td title="Si el valor supera ${r.alerta}, el riesgo pasa a 'En observaci\u00f3n'">${r.alerta}</td>
+      <td title="Si el valor supera ${r.critico}, el riesgo pasa a 'Activado'">${r.critico}</td>
+      <td title="Marcar si el riesgo ya ocurri\u00f3 y se convirti\u00f3 en problema real"><input type="checkbox" ${r.ocurrido ? 'checked' : ''} onchange="toggleOcurrido(${i}, this.checked)"></td>
+      <td title="Estado: ${estadoTexto[est]}"><span class="status-badge ${estadoClase[est]}"><span class="dot ${estadoClase[est]}"></span>${estadoTexto[est]}</span></td>
+      <td class="action" title="Acci\u00f3n sugerida para este estado">${accionTexto[est]}</td>
+      <td class="costo bajo" title="Costo estimado de aplicar medidas de control">$${r.costoControl}K</td>
+      <td class="costo alt" title="P\u00e9rdida estimada si el riesgo se materializa">$${r.costoOcurre}K</td>
+      <td class="costo ${costoEsperado > 15 ? 'alt' : 'bajo'}" title="Costo esperado = probabilidad estimada \u00d7 costo si ocurre">$${costoEsperado}K</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('resumenEstados').innerHTML = `
+    <span title="Riesgo dentro de lo esperado. Mantener monitoreo."><span class="dot dot-0"></span> Controlado: <strong>${resumen[0]}</strong></span>
+    <span title="Riesgo super\u00f3 umbral de alerta. Requiere revisi\u00f3n semanal."><span class="dot dot-1"></span> En observaci\u00f3n: <strong>${resumen[1]}</strong></span>
+    <span title="Riesgo en nivel cr\u00edtico. Requiere acci\u00f3n inmediata."><span class="dot dot-2"></span> Activado: <strong>${resumen[2]}</strong></span>
+    <span title="Riesgo ya ocurri\u00f3. Activar contingencia."><span class="dot dot-3"></span> Materializado: <strong>${resumen[3]}</strong></span>
+  `;
+
+  ranking.sort((a, b) => b.costoEsperado - a.costoEsperado);
+  document.getElementById('rankingRiesgos').innerHTML = ranking.map((r, i) =>
+    `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #eee;" title="${r.nombre} - Costo esperado: $${r.costoEsperado}K">
+      <span><strong>#${i + 1}</strong> ${r.id} - ${r.nombre.substring(0, 30)}...</span>
+      <span class="costo alt">$${r.costoEsperado}K</span>
+    </div>`
+  ).join('');
+
+  actualizarAlerta(resumen);
+}
+
+function actualizarValor(index, value) {
+  const v = parseFloat(value);
+  if (!isNaN(v) && v >= 0) {
+    renderizar(riesgosIniciales, obtenerValores());
+  }
+}
+
+function toggleOcurrido(index, checked) {
+  riesgosIniciales[index].ocurrido = checked;
+  renderizar(riesgosIniciales, obtenerValores());
+}
+
+function obtenerValores() {
+  return riesgosIniciales.map((r, i) => {
+    const input = document.querySelector(`input[data-index="${i}"]`);
+    return input ? parseFloat(input.value) || 0 : valoresIniciales[i];
+  });
+}
+
+function actualizarAlerta(resumen) {
+  const bar = document.getElementById('alertBar');
+  if (resumen[2] > 0 || resumen[3] > 0) {
+    bar.className = 'alert-bar show critical';
+    bar.innerHTML = '&#9888; RIESGO CR\u00cdTICO DETECTADO: ' + resumen[2] + ' riesgo(s) activado(s), '
+      + resumen[3] + ' materializado(s). Se requiere atenci\u00f3n inmediata.';
+  } else if (resumen[1] > 0) {
+    bar.className = 'alert-bar show warning';
+    bar.innerHTML = '&#9888; RIESGOS EN OBSERVACI\u00d3N: ' + resumen[1] + ' riesgo(s) superaron umbral de alerta. Monitorear semanalmente.';
+  } else {
+    bar.className = 'alert-bar show info';
+    bar.innerHTML = '&#10004; Todos los riesgos est\u00e1n controlados. Mantener monitoreo.';
+  }
+}
+
+function cargarEscenario() {
+  const select = document.getElementById('scenarioSelect');
+  const idx = parseInt(select.value);
+  if (!idx) return;
+
+  const esc = escenarios[idx];
+  esc.valores.forEach((v, i) => {
+    const input = document.querySelector(`input[data-index="${i}"]`);
+    if (input) input.value = v;
+    riesgosIniciales[i].ocurrido = esc.ocurridos[i];
+  });
+
+  renderizar(riesgosIniciales, esc.valores);
+
+  const bar = document.getElementById('alertBar');
+  bar.className = 'alert-bar show ' + esc.tipoAlerta;
+  bar.innerHTML = '&#128200; ' + esc.label + '<br>' + esc.alerta;
+
+  const conc = document.getElementById('conclusionContainer');
+  conc.style.display = 'block';
+  document.getElementById('conclusionTexto').innerHTML = '<strong>Conclusi\u00f3n del escenario:</strong><br>' + esc.conclusion;
+
+  document.getElementById('btnEliminarEscenario').style.display = idx >= 4 ? 'inline-block' : 'none';
+}
+
+function resetearValores() {
+  document.getElementById('scenarioSelect').value = '';
+  document.getElementById('conclusionContainer').style.display = 'none';
+  document.getElementById('btnEliminarEscenario').style.display = 'none';
+  riesgosIniciales.forEach((r, i) => {
+    r.ocurrido = [false, false, false, false, true, false, false][i];
+    const input = document.querySelector(`input[data-index="${i}"]`);
+    if (input) input.value = valoresIniciales[i];
+  });
+  renderizar(riesgosIniciales, valoresIniciales);
+}
+
+/* Modal crear/editar escenario */
+function abrirModalCrear() {
+  editandoEscenarioId = null;
+  document.getElementById('modalTitulo').textContent = '\u{1F4A1} Nuevo escenario';
+  document.getElementById('modalNombre').value = '';
+
+  const container = document.getElementById('modalRiesgos');
+  container.innerHTML = riesgosIniciales.map((r, i) =>
+    `<div class="riesgo-row">
+      <span class="r-id">${r.id}</span>
+      <span class="r-nombre">${r.nombre}</span>
+      <label style="font-size:12px;color:#666;">Valor:</label>
+      <input type="number" step="0.1" id="modalValor${i}" value="" placeholder="0">
+      <label style="font-size:12px;color:#666;" title="Ocurrido">&#10071;</label>
+      <input type="checkbox" id="modalOcurrido${i}">
+    </div>`
+  ).join('');
+
+  document.getElementById('modalAlerta').value = '';
+  document.getElementById('modalConclusion').value = '';
+
+  document.getElementById('modalCrear').classList.add('show');
+}
+
+function cerrarModal() {
+  document.getElementById('modalCrear').classList.remove('show');
+  editandoEscenarioId = null;
+}
+
+function guardarEscenario() {
+  const nombre = document.getElementById('modalNombre').value.trim();
+  if (!nombre) { alert('Debes ingresar un nombre para el escenario.'); return; }
+
+  const valores = riesgosIniciales.map((_, i) => {
+    const el = document.getElementById(`modalValor${i}`);
+    return parseFloat(el.value) || 0;
+  });
+  const ocurridos = riesgosIniciales.map((_, i) => {
+    const el = document.getElementById(`modalOcurrido${i}`);
+    return el ? el.checked : false;
+  });
+  const alerta = document.getElementById('modalAlerta').value.trim();
+  const conclusion = document.getElementById('modalConclusion').value.trim();
+
+  const id = editandoEscenarioId || proximoIdEscenario;
+
+  escenarios[id] = {
+    label: nombre,
+    valores,
+    ocurridos,
+    alerta: alerta || 'Escenario cargado.',
+    tipoAlerta: ocurridos.some((o, i) => o || valores[i] >= riesgosIniciales[i].critico) ? 'critical'
+      : ocurridos.some((o, i) => valores[i] >= riesgosIniciales[i].alerta) ? 'warning' : 'info',
+    conclusion: conclusion || 'Escenario personalizado cargado.'
+  };
+
+  if (!editandoEscenarioId) {
+    proximoIdEscenario++;
+  }
+
+  actualizarSelectEscenarios();
+  cerrarModal();
+}
+
+function actualizarSelectEscenarios() {
+  const select = document.getElementById('scenarioSelect');
+  const currentVal = select.value;
+
+  select.innerHTML = '<option value="">-- Seleccionar escenario --</option>';
+
+  const predefinidos = [1, 2, 3];
+  predefinidos.forEach(id => {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = escenarios[id].label;
+    select.appendChild(opt);
+  });
+
+  const personalizados = Object.keys(escenarios)
+    .map(Number)
+    .filter(id => id >= 4)
+    .sort((a, b) => a - b);
+
+  if (personalizados.length > 0) {
+    const group = document.createElement('optgroup');
+    group.label = 'Personalizados';
+    personalizados.forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = escenarios[id].label;
+      group.appendChild(opt);
+    });
+    select.appendChild(group);
+  }
+
+  if (currentVal && escenarios[parseInt(currentVal)]) {
+    select.value = currentVal;
+  }
+}
+
+function eliminarEscenario() {
+  const select = document.getElementById('scenarioSelect');
+  const idx = parseInt(select.value);
+  if (!idx || idx < 4) return;
+  if (!confirm('Eliminar el escenario "' + escenarios[idx].label + '"?')) return;
+
+  delete escenarios[idx];
+  select.value = '';
+  document.getElementById('btnEliminarEscenario').style.display = 'none';
+  document.getElementById('conclusionContainer').style.display = 'none';
+  actualizarSelectEscenarios();
+  resetearValores();
+}
+
+renderizar(riesgosIniciales, valoresIniciales);
+</script>
+
+</body>
+</html>
